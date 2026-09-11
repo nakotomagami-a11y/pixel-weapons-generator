@@ -20,7 +20,7 @@ export { createRandomSeed } from "./rng";
 export { Vector, Bounds } from "./math";
 export { PARTICLE_TYPES, pickParticleType, type ParticleType } from "./particles";
 export {
-  type PartOption,
+  type PartOption, type PartField, WEAPON_PART_SCHEMA,
   BLADE_PROFILE_OPTIONS, BLADE_GUARD_OPTIONS, BLADE_POMMEL_OPTIONS, BLADE_MODIFICATION_OPTIONS,
   AXE_HEAD_OPTIONS,
   SPEAR_HEAD_OPTIONS,

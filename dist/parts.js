@@ -120,3 +120,30 @@ export const SHIELD_EMBLEM_OPTIONS = [
     { value: "chevron", label: "Chevron" },
     { value: "none", label: "None" },
 ];
+/**
+ * The complete, data-driven description of the "build it yourself" UI: for
+ * every {@link IconClass}, the ordered list of dropdowns to show. A consumer
+ * can render the whole part-picker by iterating this — no hardcoded mapping of
+ * which fields belong to which weapon. Keys match {@link WeaponParts} exactly,
+ * so `{ [field.key]: selectedValue }` is a valid parts sub-object.
+ */
+export const WEAPON_PART_SCHEMA = {
+    blades: [
+        { key: "profile", label: "Profile", options: BLADE_PROFILE_OPTIONS },
+        { key: "guard", label: "Guard", options: BLADE_GUARD_OPTIONS },
+        { key: "pommel", label: "Pommel", options: BLADE_POMMEL_OPTIONS },
+        { key: "modification", label: "Blade Detail", options: BLADE_MODIFICATION_OPTIONS },
+    ],
+    spears: [{ key: "head", label: "Head", options: SPEAR_HEAD_OPTIONS }],
+    axes: [{ key: "head", label: "Head", options: AXE_HEAD_OPTIONS }],
+    staffs: [
+        { key: "head", label: "Head", options: STAFF_HEAD_OPTIONS },
+        { key: "shaft", label: "Shaft", options: STAFF_SHAFT_OPTIONS },
+    ],
+    tridents: [{ key: "type", label: "Type", options: TRIDENT_TYPE_OPTIONS }],
+    shields: [
+        { key: "shape", label: "Shape", options: SHIELD_SHAPE_OPTIONS },
+        { key: "blazon", label: "Blazon", options: SHIELD_BLAZON_OPTIONS },
+        { key: "emblem", label: "Emblem", options: SHIELD_EMBLEM_OPTIONS },
+    ],
+};
