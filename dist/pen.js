@@ -21,8 +21,8 @@ export class Pen {
         this.ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
     }
     /**
-     * De-jaggy the silhouette before outlining. Hand-drawn pixel art reads clean
-     * because its edges are deliberate curves with no stray pixels; our
+     * De-jaggy the silhouette before outlining. The tiny-swords pack reads clean
+     * because its edges are deliberate hand-drawn curves with no stray pixels; our
      * procedural shapes leave orphan specks and single-pixel staircase notches. A
      * 3×3 neighbour pass:
      *   - clears opaque pixels with ≤1 opaque neighbour  → removes floating debris
@@ -118,11 +118,14 @@ export class Pen {
      * blades/heads read as USED, not factory-new. Interior-only (all 4 orthogonal
      * neighbours opaque) so it never nibbles the silhouette; the darkened pixels
      * snap to the material's shadow tone in {@link snapToPalette}. `amount` 0..1
-     * scales the scratch count. Call before {@link addBorder}.
+     * scales the scratch count. Call before {@link addBorder}. Pass
+     * `{ rust: false }` for non-ferrous surfaces (wood, bone, cloth) where an
+     * orange corrosion tint would read as stray red noise rather than wear.
      */
-    weather(amount) {
+    weather(amount, opts = {}) {
         if (amount <= 0)
             return;
+        const allowRust = opts.rust ?? true;
         const w = this.dimension;
         const h = this.dimension;
         const ox = this.translation.x;
@@ -151,7 +154,7 @@ export class Pen {
             const dx = Math.cos(ang);
             const dy = Math.sin(ang);
             // Heavily-worn weapons corrode: some strokes are rust-tinted, not just dark.
-            const rust = r.float() < amount * 0.6;
+            const rust = allowRust && r.float() < amount * 0.6;
             for (let k = 0; k < len; k++) {
                 const px = Math.round(sx + dx * k);
                 const py = Math.round(sy + dy * k);
@@ -432,7 +435,7 @@ export class Pen {
                     p.widthR += amt;
             }
         }
-        // Steel from the material ramp instead of a free hue: light body toward
+        // Steel from the tiny-swords ramp instead of a free hue: light body toward
         // the tip, mid toward the hilt; edge/spine shading below lifts to spec / drops
         // to shadow.
         const metal = st?.metal ?? pickBladeMetal(r);
@@ -677,18 +680,49 @@ export class Pen {
         const orn = pickGuardAccent(r);
         const pommelColorLight = params.colorLight ?? orn.light;
         const pommelColorDark = params.colorDark ?? orn.shadow;
-        const pommelRadius = params.radius;
-        const shadowCenter = new Vector(0.5, 1).normalize().multiplyScalar(pommelRadius).addVector(params.center);
-        const highlightCenter = new Vector(-1, -1).normalize().multiplyScalar(pommelRadius * 0.7).addVector(params.center);
-        for (let x = Math.floor(params.center.x - pommelRadius); x <= Math.ceil(params.center.x + pommelRadius); x++) {
-            for (let y = Math.floor(params.center.y - pommelRadius); y <= Math.ceil(params.center.y + pommelRadius); y++) {
-                const radius = params.center.distanceTo(x, y);
-                if (radius <= pommelRadius) {
+        // `rx`/`ry` let this draw an ellipse (a flattened wheel pommel, an
+        // elongated scent-stopper) instead of only a circle; both default to
+        // `radius` so every pre-existing call site (a plain round knob/gem/rivet)
+        // is unaffected. `outerR` stands in for the old scalar `pommelRadius` in
+        // the shading math below.
+        const rx = params.radius;
+        const ry = params.radiusY ?? params.radius;
+        const outerR = Math.max(rx, ry);
+        const holeFrac = params.holeRadius ? params.holeRadius / outerR : 0;
+        const shadowCenter = new Vector(0.5, 1).normalize().multiplyScalar(outerR).addVector(params.center);
+        const highlightCenter = new Vector(-1, -1).normalize().multiplyScalar(outerR * 0.7).addVector(params.center);
+        for (let x = Math.floor(params.center.x - rx); x <= Math.ceil(params.center.x + rx); x++) {
+            for (let y = Math.floor(params.center.y - ry); y <= Math.ceil(params.center.y + ry); y++) {
+                // Normalized ellipse distance: <=1 is on/inside the outer boundary,
+                // exactly `distance/radius` when rx === ry (the circle case above).
+                const ell = Math.hypot((x - params.center.x) / rx, (y - params.center.y) / ry);
+                if (ell <= 1 && ell >= holeFrac) {
                     const shadowDist = shadowCenter.distanceTo(x, y);
                     const highlightDist = highlightCenter.distanceTo(x, y);
-                    const darkAmt = 1 - Math.min(1, (0.8 * shadowDist) / pommelRadius);
-                    const lightAmt = 1 - Math.min(1, highlightDist / pommelRadius);
+                    const darkAmt = 1 - Math.min(1, (0.8 * shadowDist) / outerR);
+                    const lightAmt = 1 - Math.min(1, highlightDist / outerR);
                     this.ctx.fillStyle = colorStr(colorLighten(colorLerp(pommelColorLight, pommelColorDark, darkAmt), lightAmt));
+                    this.drawPixel(x, y);
+                }
+            }
+        }
+    }
+    /** Small diamond/lozenge mark — same light-to-dark falloff as
+     *  {@link drawRoundOrnamentHelper} but Manhattan distance instead of
+     *  Euclidean, so it reads as an etched rhombus rather than a stud. Used to
+     *  stamp a row of diamond marks down a blade's centerline. */
+    drawDiamondOrnamentHelper(params) {
+        this.rng.checkpoint();
+        const r = this.rng;
+        const orn = pickGuardAccent(r);
+        const colorLight = params.colorLight ?? orn.light;
+        const colorDark = params.colorDark ?? orn.shadow;
+        const radius = params.radius;
+        for (let x = Math.floor(params.center.x - radius); x <= Math.ceil(params.center.x + radius); x++) {
+            for (let y = Math.floor(params.center.y - radius); y <= Math.ceil(params.center.y + radius); y++) {
+                const dist = Math.abs(x - params.center.x) + Math.abs(y - params.center.y);
+                if (dist <= radius) {
+                    this.ctx.fillStyle = colorStr(colorLerp(colorLight, colorDark, dist / radius));
                     this.drawPixel(x, y);
                 }
             }

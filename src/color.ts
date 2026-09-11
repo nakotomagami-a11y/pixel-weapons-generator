@@ -28,7 +28,7 @@ export function hsvToRgb(color: Hsv): Color {
 
 /**
  * Cel-shading: number of discrete value steps every {@link colorLerp} blend is
- * snapped to. This is what gives the chunky RTS-sprite look — hard shadow/highlight
+ * snapped to. This is what gives the tiny-swords look — hard shadow/highlight
  * bands instead of smooth airbrush gradients. 0 or 1 disables (continuous).
  * Set once per render from the generator; canvas drawing is synchronous so a
  * module-level knob is safe.

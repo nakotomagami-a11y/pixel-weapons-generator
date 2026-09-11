@@ -18,7 +18,7 @@ import { IconGenerator } from "../generator";
 export const WeaponIcon = memo(function WeaponIcon({ config, size = 48, dimension, border, particles, className, }) {
     const canvasRef = useRef(null);
     // Chunky-by-design: a fixed-ish low native res (28–44) upscaled to the display
-    // size gives the deliberate blocky pixel-art edges. Supersampling to
+    // size gives the tiny-swords pack's deliberate blocky edges. Supersampling to
     // 48–96 (the old default) rendered fine pixels that just amplified the
     // procedural edge noise and read as rough. The generator is scale-invariant,
     // so a lower native res only coarsens the pixels — it never reshapes the icon.
