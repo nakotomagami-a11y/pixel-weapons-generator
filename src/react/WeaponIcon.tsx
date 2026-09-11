@@ -24,10 +24,11 @@ export interface WeaponIconProps {
   size?: number;
   /**
    * Native render resolution in pixels. Lower = chunkier, more deliberate
-   * pixels — a fixed low native res with big blocks, not fine-grained detail,
-   * is what reads as clean pixel art. Omit to derive a sensible value from
-   * `size` (≈0.55×, clamped to 28–44); high resolutions only amplify the
-   * procedural edge noise and look rough. Pass an explicit value to override.
+   * pixels — which is what makes the tiny-swords pack read clean: a fixed low
+   * native res with big blocks, not fine-grained detail. Omit to derive a
+   * pack-like value from `size` (≈0.55×, clamped to 28–44); high resolutions
+   * only amplify the procedural edge noise and look rough. Pass an explicit
+   * value to override.
    */
   dimension?: number;
   /**
@@ -56,7 +57,7 @@ export const WeaponIcon = memo(function WeaponIcon({
 }: WeaponIconProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Chunky-by-design: a fixed-ish low native res (28–44) upscaled to the display
-  // size gives the deliberate blocky pixel-art edges. Supersampling to
+  // size gives the tiny-swords pack's deliberate blocky edges. Supersampling to
   // 48–96 (the old default) rendered fine pixels that just amplified the
   // procedural edge noise and read as rough. The generator is scale-invariant,
   // so a lower native res only coarsens the pixels — it never reshapes the icon.

@@ -22,13 +22,14 @@ export type Ctx2D = CanvasRenderingContext2D;
 export interface IconOptions {
     /**
      * Outline color as [r, g, b], 0–255. Default is a warm near-black
-     * ([32, 26, 38]) — a dark desaturated plum rather than pure black, which
-     * reads softer against dark UIs. Pass [0,0,0] for the original hard black.
+     * ([32, 26, 38]) — the tiny-swords pack outlines in a dark desaturated plum,
+     * not pure black, which reads softer against dark UIs. Pass [0,0,0] for the
+     * original hard black.
      */
     border?: [number, number, number];
     /**
      * Cel-shading step count. Snaps every shade blend to N discrete value bands
-     * for a hand-drawn cel-shaded look instead of smooth gradients. 0/1 =
+     * for the hand-drawn tiny-swords look instead of smooth gradients. 0/1 =
      * continuous (original). Default: 4.
      */
     celSteps?: number;
@@ -51,8 +52,8 @@ export declare class Pen {
     clearCanvas(): void;
     drawPixel(x: number, y: number): void;
     /**
-     * De-jaggy the silhouette before outlining. Hand-drawn pixel art reads clean
-     * because its edges are deliberate curves with no stray pixels; our
+     * De-jaggy the silhouette before outlining. The tiny-swords pack reads clean
+     * because its edges are deliberate hand-drawn curves with no stray pixels; our
      * procedural shapes leave orphan specks and single-pixel staircase notches. A
      * 3×3 neighbour pass:
      *   - clears opaque pixels with ≤1 opaque neighbour  → removes floating debris
@@ -78,9 +79,13 @@ export declare class Pen {
      * blades/heads read as USED, not factory-new. Interior-only (all 4 orthogonal
      * neighbours opaque) so it never nibbles the silhouette; the darkened pixels
      * snap to the material's shadow tone in {@link snapToPalette}. `amount` 0..1
-     * scales the scratch count. Call before {@link addBorder}.
+     * scales the scratch count. Call before {@link addBorder}. Pass
+     * `{ rust: false }` for non-ferrous surfaces (wood, bone, cloth) where an
+     * orange corrosion tint would read as stray red noise rather than wear.
      */
-    weather(amount: number): void;
+    weather(amount: number, opts?: {
+        rust?: boolean;
+    }): void;
     /**
      * Outline the silhouette. Selective (2-tone) like the pack: the near-black
      * `border` on shadowed (bottom-right) edges, a lifted navy on the top-left
@@ -118,6 +123,11 @@ export declare class Pen {
     };
     drawRodHelper(params: RodParams): void;
     drawRoundOrnamentHelper(params: OrnamentParams): void;
+    /** Small diamond/lozenge mark — same light-to-dark falloff as
+     *  {@link drawRoundOrnamentHelper} but Manhattan distance instead of
+     *  Euclidean, so it reads as an etched rhombus rather than a stud. Used to
+     *  stamp a row of diamond marks down a blade's centerline. */
+    drawDiamondOrnamentHelper(params: OrnamentParams): void;
 }
 /** Discrete blade-profile knobs. Absent → the original random meander. */
 export interface BladeStyle {
@@ -207,6 +217,12 @@ export interface RodParams {
 export interface OrnamentParams {
     center: Vector;
     radius: number;
+    /** Vertical radius, for a flattened/elongated ellipse (e.g. a wheel or
+     *  scent-stopper pommel). Default: same as `radius` (a circle). */
+    radiusY?: number;
+    /** Inner radius left unpainted, punching a hole through the middle (a ring
+     *  pommel). Default: 0 (solid). */
+    holeRadius?: number;
     colorLight?: Color;
     colorDark?: Color;
 }

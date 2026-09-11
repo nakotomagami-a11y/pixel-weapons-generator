@@ -1,5 +1,6 @@
 import type { Pen } from "../pen";
 import type { Color } from "../types";
+import type { AxeHead as Head, AxeParts } from "../types";
 import { Vector, Bounds, diagToPosition } from "../math";
 import { colorLerp, colorStr, colorDarken } from "../color";
 import { Rng } from "../rng";
@@ -13,25 +14,36 @@ import { pickBladeMetal, pickGem, pickCrystal, GOLD, WOOD, DARK, BRONZE } from "
  * derived from the reference vocabulary, not copied pixels.
  */
 
-type Head = "fan" | "bearded" | "broad" | "double" | "crescent" | "halberd";
 const HEADS: Head[] = ["fan", "bearded", "broad", "double", "crescent", "halberd", "fan", "bearded", "crescent", "halberd"];
 
 const pick = <T,>(r: Rng, arr: T[]): T => arr[Math.floor(r.float() * arr.length) % arr.length]!;
 const norm = (x: number, y: number) => { const m = Math.hypot(x, y) || 1; return { x: x / m, y: y / m }; };
 
+/**
+ * Axe-bit shape in the (s = along haft, d = outward·sign) frame, built as the
+ * INTERSECTION of four convex constraints:
+ *   d ≥ 0                              — the haft side (bit seats onto the shaft)
+ *   s ≤  sockTop + kTop·d              — top edge (flares outward with slope kTop)
+ *   s ≥ -sockBot - kBot·d              — bottom edge / beard (slope kBot)
+ *   (s-sMid)² + (d-(depth-R))² ≤ R²    — circular cutting-edge arc, R = depth·curve
+ * Intersection of convex sets is always convex, so the silhouette can never
+ * self-cross into a spike/flag/talon (the failure mode of the old flare-vs-cap
+ * model). The circular arc gives the bold rounded cutting edge a real axe has.
+ */
 interface FanParams {
-  neckTop: number;
-  neckBot: number;
-  halfTop: number;
-  halfBot: number;
-  depth: number;
-  edgeBulge: number; // 0.6–1: convexity of the cutting edge
+  sockTop: number; // socket half-height above the haft attach point (px)
+  sockBot: number; // socket half-height below it (px)
+  kTop: number; // top-edge flare slope (Δs per Δd)
+  kBot: number; // bottom-edge / beard flare slope
+  depth: number; // max outward reach of the cutting edge (px)
+  curve: number; // edge circle radius = depth·curve (≥1; larger = flatter edge)
+  sMid: number; // along-haft position where the edge bulges furthest (px; <0 = toward the beard)
   notch: number; // 0 = smooth, >0 = teeth carved from the edge
-  concave?: number; // >0 → concave valley in the edge (crescent / double-horn)
+  concave?: number; // >0 → centre of the edge scooped inward (crescent)
   fuller?: boolean; // dark engraved groove down the centre of the bit
 }
 
-export function drawAxe(pen: Pen): void {
+export function drawAxe(pen: Pen, parts?: AxeParts): void {
   pen.rng.checkpoint();
   const r = pen.rng;
 
@@ -41,14 +53,17 @@ export function drawAxe(pen: Pen): void {
 
   pen.clearCanvas();
 
-  const head = pick(r, HEADS);
+  const head = parts?.head ?? pick(r, HEADS);
   const metal = r.float() < 0.1 ? pickCrystal(r) : pickBladeMetal(r); // ~10% enchanted crystal head
   const accent = r.float() < 0.5 ? GOLD : metal;
 
   // Head anchor sits at the top of the haft; the haft ends just past it so the
   // head's neck always covers the shaft top (no thin haft poking above the head).
-  // A halberd sits lower so its long top blade has room to reach the corner.
-  const headDiag = canvasDiag - Math.ceil((head === "halberd" ? r.range(12, 16) : r.range(5, 9)) * dscale);
+  // The bit reaches OUTWARD (up-left) by ~depth, so the anchor must sit far
+  // enough down the diagonal that the cutting edge doesn't clip off the top
+  // corner — hence more clearance than the old thin wedges needed. A halberd
+  // sits lower still so its long top spike has room to reach the corner.
+  const headDiag = canvasDiag - Math.ceil((head === "halberd" ? r.range(13, 16) : r.range(10, 13)) * dscale);
   const u = new Vector(1, -1).normalize(); // along haft, toward the head (top-right)
   const n = new Vector(-1, -1).normalize(); // outward (top-left)
   const anchorDiag = headDiag - Math.floor(r.range(0, 2) * dscale);
@@ -57,63 +72,77 @@ export function drawAxe(pen: Pen): void {
 
   const anchor = diagToPosition(anchorDiag, bounds);
 
-  const notch = r.float() < 0.3 ? r.rangeFloat(0.16, 0.32) : 0;
+  const notch = r.float() < 0.3 ? r.rangeFloat(0.16, 0.30) : 0;
   const doubleSide = head === "double";
-  const sign = doubleSide ? 0 : 1;
 
-  if (head === "crescent") {
-    // A tall bit with a concave cutting edge → two sweeping horns, still solidly
-    // socketed to the haft (no floating gap like the old polar arc).
-    const cres: FanParams = {
-      neckTop: Math.max(1, 2 * dscale),
-      neckBot: Math.max(1, 2 * dscale),
-      halfTop: r.rangeFloat(6, 8.5) * dscale,
-      halfBot: r.rangeFloat(6, 8.5) * dscale,
-      depth: r.rangeFloat(10, 13) * dscale,
-      edgeBulge: 0.8,
-      notch,
-      concave: r.rangeFloat(0.3, 0.45),
-    };
-    drawFan(pen, anchor, u, n, cres, metal, 1);
-  } else {
-    // Fan family: symmetric bit, extended beard, or wide broad head.
-    const depth = r.rangeFloat(7, 11) * dscale;
-    const base: FanParams = {
-      neckTop: Math.max(1, 1.6 * dscale),
-      neckBot: Math.max(1, 1.6 * dscale),
-      halfTop: r.rangeFloat(5, 8) * dscale,
-      halfBot: r.rangeFloat(5, 8) * dscale,
-      depth,
-      edgeBulge: 0.8,
-      notch,
-      fuller: notch === 0 && r.float() < 0.35, // engraved groove (not with a notched edge)
-    };
-    if (head === "bearded") {
-      base.halfBot = r.rangeFloat(9, 13) * dscale; // edge hangs down toward the hilt
-      base.neckBot = Math.max(1, 1.0 * dscale);
-    } else if (head === "broad") {
-      base.halfTop = r.rangeFloat(8, 11) * dscale;
-      base.halfBot = r.rangeFloat(8, 11) * dscale;
-      base.depth = r.rangeFloat(8, 12) * dscale;
-    } else if (head === "halberd") {
-      // Smaller bit — the long top blade is the halberd's signature.
-      base.halfTop = r.rangeFloat(3.5, 5) * dscale;
-      base.halfBot = r.rangeFloat(4.5, 7) * dscale; // slight beard
-      base.depth = r.rangeFloat(7, 9) * dscale;
-    }
-    drawFan(pen, anchor, u, n, base, metal, 1);
-    if (doubleSide) drawFan(pen, anchor, u, n, base, metal, -1);
-    void sign;
+  // Convex-arc bit (see FanParams). Defaults = single-bit hatchet: cutting edge
+  // a bold convex arc reaching up-left, a beard hanging down toward the grip,
+  // and only a small rise above the socket (so it never streams up-right off
+  // the haft top into a pennant/flag — the old failure mode).
+  const p: FanParams = {
+    sockTop: r.rangeFloat(3, 3.5) * dscale,
+    sockBot: r.rangeFloat(3, 3.5) * dscale,
+    kTop: r.rangeFloat(0.35, 0.5),
+    kBot: r.rangeFloat(0.55, 0.72),
+    depth: r.rangeFloat(10.5, 12) * dscale,
+    curve: r.rangeFloat(1.4, 1.6),
+    sMid: -r.rangeFloat(1.5, 3) * dscale,
+    notch,
+    fuller: notch === 0 && r.float() < 0.35,
+  };
+  if (head === "bearded") {
+    // Hatchet with a long beard: flatter top, edge hangs toward the grip.
+    p.kTop = r.rangeFloat(0.2, 0.32);
+    p.kBot = r.rangeFloat(0.8, 1.0);
+    p.depth = r.rangeFloat(11, 12.5) * dscale;
+    p.curve = r.rangeFloat(1.25, 1.45);
+    p.sMid = -r.rangeFloat(3.5, 5) * dscale;
+  } else if (head === "broad") {
+    p.kTop = r.rangeFloat(0.55, 0.7); // wide, near-symmetric fan
+    p.kBot = r.rangeFloat(0.55, 0.7);
+    p.sockTop = p.sockBot = r.rangeFloat(3.2, 3.8) * dscale;
+    p.depth = r.rangeFloat(11, 12.5) * dscale;
+    p.curve = r.rangeFloat(1.45, 1.65);
+    p.sMid = 0;
+  } else if (head === "double") {
+    // Symmetric so the mirrored (sign = -1) second bit matches exactly.
+    p.kTop = r.rangeFloat(0.5, 0.62);
+    p.kBot = p.kTop;
+    p.sockTop = p.sockBot = r.rangeFloat(3, 3.5) * dscale;
+    p.depth = r.rangeFloat(10, 11.5) * dscale;
+    p.curve = r.rangeFloat(1.35, 1.55);
+    p.sMid = 0;
+    p.fuller = false;
+  } else if (head === "crescent") {
+    p.kTop = r.rangeFloat(0.52, 0.66);
+    p.kBot = r.rangeFloat(0.52, 0.66);
+    p.sockTop = p.sockBot = r.rangeFloat(3.2, 3.8) * dscale;
+    p.depth = r.rangeFloat(11, 12.5) * dscale;
+    p.curve = r.rangeFloat(1.4, 1.6);
+    p.sMid = 0;
+    p.concave = r.rangeFloat(0.3, 0.45); // centre scoop → crescent horns
+    p.fuller = false;
+  } else if (head === "halberd") {
+    // Compact bit — the long top spike (added below) is the halberd's signature.
+    p.kTop = r.rangeFloat(0.25, 0.4);
+    p.kBot = r.rangeFloat(0.45, 0.6);
+    p.depth = r.rangeFloat(7, 8.5) * dscale;
+    p.curve = r.rangeFloat(1.3, 1.5);
+    p.sMid = -r.rangeFloat(1, 2.5) * dscale;
   }
+  drawFan(pen, anchor, u, n, p, metal, 1);
+  if (doubleSide) drawFan(pen, anchor, u, n, p, metal, -1);
 
-  // Top spike / finial: a wedge continuing up past the head. A halberd always
-  // gets a LONG bladed spike (its signature); other heads a short finial.
-  if (head === "halberd" || r.float() < 0.4) {
-    const long = head === "halberd";
-    const startDiag = long ? headDiag - Math.round(1 * dscale) : headDiag + Math.round(r.rangeFloat(1, 3) * dscale);
+  // Top spike: a long bladed point continuing past the head, in line with the
+  // haft — the halberd's signature. On other heads this used to appear as a
+  // short "finial" in the same spot, but continuing the bit's own top corner
+  // in the same direction just fused with it into one over-long point (the
+  // "flag" look) — dropped rather than fought into looking right.
+  if (head === "halberd") {
+    const startDiag = headDiag - Math.round(1 * dscale);
     const tp = diagToPosition(Math.min(canvasDiag - 1, startDiag), bounds);
-    const len = long ? (canvasDiag - startDiag - 1) : r.rangeFloat(3, 6) * dscale;
-    const half = long ? r.rangeFloat(1.6, 2.4) * dscale : r.rangeFloat(1, 1.8) * dscale;
+    const len = canvasDiag - startDiag - 1;
+    const half = r.rangeFloat(1.6, 2.4) * dscale;
     pen.fillCone(tp.x, tp.y, u.x, u.y, 0, len, half, metal.light, metal.shadow);
   }
 
@@ -209,44 +238,54 @@ export function drawAxe(pen: Pen): void {
   }
 }
 
-/** Solid fan bit in the (s = along haft, d = outward·sign) frame. */
+/**
+ * Convex-arc axe bit in the (s = along haft, d = outward·sign) frame. See
+ * {@link FanParams} for the four-constraint convex-intersection model that
+ * guarantees an axe-shaped (never spiky/flag) silhouette.
+ */
 function drawFan(pen: Pen, anchor: Vector, u: Vector, n: Vector, p: FanParams, metal: { light: Color; mid: Color; shadow: Color; spec: Color }, sign: number): void {
   const B = pen.dimension;
+  const dscale = B / 32;
+  const R = p.depth * p.curve;
+  const cd = p.depth - R; // circle centre (outward coord) sits behind the peak
+  const cs = p.sMid;
+  const crescent = !!p.concave && p.concave > 0;
+  const scoopHalf = 0.35 * (p.sockTop + p.sockBot + p.depth); // crescent centre-scoop half-width
+  const fullerHalf = Math.max(0.9, (Math.max(p.sockTop, p.sockBot) + 1.5) * 0.5);
   for (let x = 0; x < B; x++) {
     for (let y = 0; y < B; y++) {
       const px = x - anchor.x;
       const py = y - anchor.y;
       const s = px * u.x + py * u.y;
       const d = (px * n.x + py * n.y) * sign;
-      if (d < 0 || d > p.depth) continue;
-      const flare = d / p.depth;
-      const halfT = p.neckTop + (p.halfTop - p.neckTop) * Math.pow(flare, 0.6);
-      const halfB = p.neckBot + (p.halfBot - p.neckBot) * Math.pow(flare, 0.6);
-      if (s > halfT || s < -halfB) continue;
-      const sn = s > 0 ? s / (p.halfTop || 1) : s / (p.halfBot || 1);
-      // Cutting edge: convex bulge, or (crescent) a concave valley → two horns.
-      let edgeMax = p.concave && p.concave > 0
-        ? p.depth * ((1 - p.concave) + p.concave * sn * sn)
-        : p.depth * (p.edgeBulge + (1 - p.edgeBulge) * (1 - sn * sn));
-      // Solid fans fill from the neck; crescents are a thin blade hollowed on the
-      // inner side except for a socket column that keeps them attached to the haft.
-      const socket = Math.max(p.neckTop, p.neckBot) + 1.5;
-      const dInner = p.concave && Math.abs(s) >= socket ? Math.min(edgeMax * 0.3, 1.8) : 0;
+      if (d < 0) continue;
+      const topLim = p.sockTop + p.kTop * d; // top edge (flares out)
+      const botLim = p.sockBot + p.kBot * d; // bottom edge / beard (flares out)
+      if (s > topLim || s < -botLim) continue;
+      const dxr = s - cs;
+      const dyr = d - cd;
+      if (dxr * dxr + dyr * dyr > R * R) continue; // outside the cutting-edge arc
+      // Outward extent of the cutting-edge arc at this s.
+      let cap = cd + Math.sqrt(Math.max(0, R * R - dxr * dxr));
+      if (crescent) cap -= p.concave! * p.depth * Math.max(0, 1 - Math.abs(s - cs) / scoopHalf); // centre scoop
       if (p.notch > 0) {
-        const tri = Math.abs(((s / 3.2) % 2 + 2) % 2 - 1);
-        edgeMax *= 1 - p.notch * (1 - tri);
+        const tri = Math.abs(((s / (3.2 * dscale)) % 2 + 2) % 2 - 1);
+        cap *= 1 - p.notch * (1 - tri);
       }
-      if (d > edgeMax || d < dInner) continue;
-      const lat = Math.abs(s) / (s > 0 ? p.halfTop : p.halfBot || 1);
-      const edgeProx = edgeMax > 0 ? d / edgeMax : 0;
-      // Higher contrast: dark thick neck → bright sharpened cutting edge.
+      if (d > cap) continue;
+      // Shading: dark thick neck (d small) → bright sharpened cutting edge
+      // (d near cap); darken toward the flat top/bottom edges (high lat).
+      const sideHalf = s > 0 ? topLim : botLim;
+      const lat = sideHalf > 0 ? Math.min(1, Math.abs(s) / sideHalf) : 0;
+      const edgeProx = cap > 0 ? d / cap : 0;
+      const flare = d / p.depth;
       let shade = 0.16 + 0.5 * flare;
       if (edgeProx > 0.72) shade += 0.7 * ((edgeProx - 0.72) / 0.28);
       shade -= 0.28 * Math.pow(lat, 1.7);
       shade = Math.max(0, Math.min(1, shade));
       // Fuller: a dark engraved groove running the centre of the bit from the
       // neck out toward (but not into) the cutting edge.
-      const inFuller = p.fuller && Math.abs(s) < Math.max(0.9, socket * 0.35) && flare > 0.15 && edgeProx < 0.7;
+      const inFuller = p.fuller && Math.abs(s - cs) < fullerHalf && flare > 0.15 && edgeProx < 0.7;
       const col = inFuller ? metal.shadow : edgeProx > 0.9 ? metal.spec : colorLerp(metal.shadow, metal.light, shade);
       pen.ctx.fillStyle = colorStr(col);
       pen.drawPixel(x, y);
