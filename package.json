@@ -34,7 +34,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "preview": "bun scripts/preview.mjs"
+    "preview": "bun scripts/preview.mjs",
+    "build:playground": "esbuild ./src/index.ts --bundle --format=esm --outfile=playground/bundle.js",
+    "playground": "pnpm build:playground && serve playground"
   },
   "peerDependencies": {
     "react": ">=18.0.0"
@@ -47,6 +49,8 @@
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.2",
     "@types/react": "^19.0.0",
+    "esbuild": "^0.28.2",
+    "serve": "^14.2.6",
     "typescript": "^5.6.3"
   }
 }

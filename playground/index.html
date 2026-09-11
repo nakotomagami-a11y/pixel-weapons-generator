@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>pixel-icons — playground</title>
+<style>
+  :root {
+    --bg: #f4f4f7;
+    --panel: #ffffff;
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --line-strong: #d1d5db;
+    --acc: #6d5cff;
+    --acc-soft: #efeaff;
+    --acc-line: #c9bdff;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(20, 20, 40, 0.08);
+    width: 100%;
+    max-width: 820px;
+    overflow: hidden;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 { margin: 0; font-size: 17px; letter-spacing: .2px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .body { display: flex; gap: 22px; padding: 22px; flex-wrap: wrap; }
+
+  /* preview column */
+  .preview { display: flex; flex-direction: column; align-items: center; gap: 10px; flex: 0 0 180px; }
+  .stage {
+    width: 176px; height: 176px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background:
+      linear-gradient(45deg, #eceef3 25%, transparent 25%) -8px 0/16px 16px,
+      linear-gradient(-45deg, #eceef3 25%, transparent 25%) -8px 0/16px 16px,
+      linear-gradient(45deg, transparent 75%, #eceef3 75%) -8px 0/16px 16px,
+      linear-gradient(-45deg, transparent 75%, #eceef3 75%) -8px 0/16px 16px,
+      #f8f8fb;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #icon { image-rendering: pixelated; width: 144px; height: 144px; }
+  .preview .label { color: var(--muted); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+  .preview .resolved { font-size: 12px; color: var(--ink); }
+  .preview .resolved b { color: var(--acc); }
+
+  /* controls column */
+  .controls { flex: 1 1 380px; min-width: 300px; display: flex; flex-direction: column; gap: 18px; }
+  .group-label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+
+  .types { display: flex; flex-wrap: wrap; gap: 8px; }
+  .type-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; min-width: 120px; flex: 1 1 120px;
+    border: 1px solid var(--line-strong); border-radius: 10px;
+    background: #fbfbfd; color: var(--ink); cursor: pointer;
+    font-size: 13px; text-align: left;
+    transition: background .12s, border-color .12s;
+  }
+  .type-btn:hover { background: #f3f3f8; }
+  .type-btn.active { background: var(--acc-soft); border-color: var(--acc-line); color: var(--acc); font-weight: 600; }
+  .type-btn canvas { image-rendering: pixelated; width: 26px; height: 26px; flex: 0 0 26px; }
+
+  .seed-row { display: flex; gap: 8px; }
+  input[type="text"] {
+    flex: 1; padding: 9px 12px; border: 1px solid var(--line-strong);
+    border-radius: 9px; font: inherit; color: var(--ink); background: #fbfbfd;
+  }
+  input[type="text"]:focus { outline: 2px solid var(--acc-line); border-color: var(--acc-line); }
+  button.ghost {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 14px; border: 1px solid var(--line-strong); border-radius: 9px;
+    background: #fbfbfd; color: var(--ink); cursor: pointer; font: inherit;
+  }
+  button.ghost:hover { background: #f3f3f8; }
+
+  .fields { display: flex; flex-wrap: wrap; gap: 12px 16px; }
+  .field { display: flex; flex-direction: column; gap: 5px; flex: 1 1 160px; min-width: 150px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  select {
+    padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 9px;
+    font: inherit; color: var(--ink); background: #fbfbfd; cursor: pointer;
+  }
+  select:focus { outline: 2px solid var(--acc-line); border-color: var(--acc-line); }
+  .fx-note { font-size: 12px; color: var(--muted); font-style: italic; }
+
+  footer {
+    border-top: 1px solid var(--line); padding: 14px 22px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  footer code {
+    flex: 1; min-width: 200px; font-size: 11.5px; color: #334155;
+    background: #f5f5f9; border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; overflow-x: auto; white-space: pre;
+  }
+  footer .copy { flex: 0 0 auto; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <header>
+      <h1>pixel-icons</h1>
+      <span class="sub">playground — every option the package exports, live</span>
+    </header>
+
+    <div class="body">
+      <div class="preview">
+        <div class="stage"><canvas id="icon" width="60" height="60"></canvas></div>
+        <div class="label">Preview</div>
+        <div class="resolved" id="resolved"></div>
+      </div>
+
+      <div class="controls">
+        <div>
+          <div class="group-label">Weapon Type</div>
+          <div class="types" id="types"></div>
+        </div>
+
+        <div>
+          <div class="group-label">Seed</div>
+          <div class="seed-row">
+            <input type="text" id="seed" spellcheck="false" />
+            <button class="ghost" id="random">↻ Random</button>
+          </div>
+        </div>
+
+        <div>
+          <div class="group-label">Customize</div>
+          <div class="fields" id="fields"></div>
+        </div>
+
+        <div>
+          <div class="group-label">Effects</div>
+          <div class="fields">
+            <div class="field">
+              <label for="particles">Particles</label>
+              <select id="particles"></select>
+            </div>
+            <div class="field">
+              <label for="border">Outline</label>
+              <select id="border">
+                <option value="">Black (default)</option>
+                <option value="26,22,34">Soft dark</option>
+                <option value="60,50,80">Muted violet</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="dim">Native res (<span id="dimval">44</span>px)</label>
+              <input type="range" id="dim" min="28" max="60" value="44" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <code id="config"></code>
+      <button class="ghost copy" id="copy">Copy config</button>
+    </footer>
+  </div>
+
+  <script type="module">
+    import {
+      IconGenerator, createRandomSeed, WEAPON_PART_SCHEMA, PARTICLE_TYPES,
+    } from "./bundle.js";
+
+    const CLASS_LABELS = {
+      any: "Any", blades: "Blade", spears: "Spear", axes: "Axe",
+      staffs: "Staff", tridents: "Trident", shields: "Shield",
+    };
+    const CLASSES = ["any", "blades", "spears", "axes", "staffs", "tridents", "shields"];
+
+    const state = {
+      iconClass: "blades",
+      seed: "playground",
+      parts: {},          // { [class]: { [field]: value } }
+      particles: "none",
+      border: "",
+      dim: 44,
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const iconCanvas = $("icon");
+
+    // Draw a config into any canvas at the given native dimension.
+    function draw(canvas, cfg, dim, opts) {
+      canvas.width = dim; canvas.height = dim;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, dim, dim);
+      return new IconGenerator(ctx, dim, opts).generate(cfg);
+    }
+
+    function currentConfig() {
+      const cfg = { seed: state.seed, iconClass: state.iconClass };
+      const sub = state.parts[state.iconClass];
+      const active = sub && Object.fromEntries(Object.entries(sub).filter(([, v]) => v));
+      if (active && Object.keys(active).length) cfg.parts = { [state.iconClass]: active };
+      return cfg;
+    }
+    function currentOpts() {
+      const opts = { particles: state.particles };
+      if (state.border) opts.border = state.border.split(",").map(Number);
+      return opts;
+    }
+
+    // ---- weapon-type buttons (each shows a tiny live sample) ----
+    const typesEl = $("types");
+    function buildTypes() {
+      typesEl.innerHTML = "";
+      for (const c of CLASSES) {
+        const btn = document.createElement("button");
+        btn.className = "type-btn" + (c === state.iconClass ? " active" : "");
+        const cv = document.createElement("canvas");
+        draw(cv, { seed: state.seed + ":" + c, iconClass: c }, 32, {});
+        const span = document.createElement("span");
+        span.textContent = CLASS_LABELS[c];
+        btn.append(cv, span);
+        btn.onclick = () => { state.iconClass = c; buildFields(); render(); syncTypeActive(); };
+        typesEl.appendChild(btn);
+      }
+    }
+    function syncTypeActive() {
+      [...typesEl.children].forEach((b, i) =>
+        b.classList.toggle("active", CLASSES[i] === state.iconClass));
+    }
+
+    // ---- data-driven part dropdowns from WEAPON_PART_SCHEMA ----
+    const fieldsEl = $("fields");
+    function buildFields() {
+      fieldsEl.innerHTML = "";
+      const schema = WEAPON_PART_SCHEMA[state.iconClass];
+      if (!schema) {
+        const note = document.createElement("div");
+        note.className = "fx-note";
+        note.textContent = "“Any” resolves a weapon class from the seed — pick a specific type to customize its parts.";
+        fieldsEl.appendChild(note);
+        return;
+      }
+      const sub = (state.parts[state.iconClass] ||= {});
+      for (const field of schema) {
+        const wrap = document.createElement("div");
+        wrap.className = "field";
+        const lab = document.createElement("label");
+        lab.textContent = field.label;
+        const sel = document.createElement("select");
+        sel.innerHTML = `<option value="">Auto (random)</option>` +
+          field.options.map((o) => `<option value="${o.value}">${o.label}</option>`).join("");
+        sel.value = sub[field.key] || "";
+        sel.onchange = () => { sub[field.key] = sel.value; render(); };
+        wrap.append(lab, sel);
+        fieldsEl.appendChild(wrap);
+      }
+    }
+
+    // ---- effects ----
+    $("particles").innerHTML =
+      ["none", "random", "themed", ...PARTICLE_TYPES]
+        .map((p) => `<option value="${p}">${p[0].toUpperCase() + p.slice(1)}</option>`).join("");
+    $("particles").onchange = (e) => { state.particles = e.target.value; render(); };
+    $("border").onchange = (e) => { state.border = e.target.value; render(); };
+    $("dim").oninput = (e) => { state.dim = +e.target.value; $("dimval").textContent = state.dim; render(); };
+
+    // ---- seed ----
+    $("seed").value = state.seed;
+    $("seed").oninput = (e) => { state.seed = e.target.value; buildTypes(); render(); };
+    $("random").onclick = () => {
+      state.seed = createRandomSeed();
+      $("seed").value = state.seed;
+      buildTypes(); render();
+    };
+
+    // ---- copy config ----
+    $("copy").onclick = async () => {
+      await navigator.clipboard.writeText(JSON.stringify(currentConfig(), null, 2));
+      const b = $("copy"); const t = b.textContent; b.textContent = "Copied ✓";
+      setTimeout(() => (b.textContent = t), 1200);
+    };
+
+    function render() {
+      const cfg = currentConfig();
+      const drawn = draw(iconCanvas, cfg, state.dim, currentOpts());
+      const meta = state.iconClass === "any" ? ` → <b>${drawn}</b>` : "";
+      $("resolved").innerHTML = `${CLASS_LABELS[state.iconClass]}${meta}`;
+      $("config").textContent = JSON.stringify(cfg);
+    }
+
+    buildTypes();
+    buildFields();
+    render();
+  </script>
+</body>
+</html>
